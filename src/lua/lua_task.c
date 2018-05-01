@@ -81,9 +81,10 @@ LUA_FUNCTION_DEF (task, get_ev_base);
  */
 LUA_FUNCTION_DEF (task, get_worker);
 /***
- * @method task:insert_result(symbol, weight[, option1, ...])
+ * @method task:insert_result([enforce_symbol,]symbol, weight[, option1, ...])
  * Insert specific symbol to the tasks scanning results assigning the initial
  * weight to it.
+ * @param {boolean} enforce_symbol if represented and true, then insert symbol even if it is not registered in the metric
  * @param {string} symbol symbol to insert
  * @param {number} weight initial weight (this weight is multiplied by the metric weight)
  * @param {string} options list of optional options attached to a symbol inserted
@@ -843,6 +844,14 @@ LUA_FUNCTION_DEF (task, headers_foreach);
  */
 LUA_FUNCTION_DEF (task, disable_action);
 
+/***
+ * @method task:get_newlines_type()
+ * Returns the most frequent newlines type met in a task
+ *
+ * @return {string} "cr" for \r, "lf" for \n, "crlf" for \r\n
+ */
+LUA_FUNCTION_DEF (task, get_newlines_type);
+
 static const struct luaL_reg tasklib_f[] = {
 	{NULL, NULL}
 };
@@ -936,6 +945,7 @@ static const struct luaL_reg tasklib_m[] = {
 	LUA_INTERFACE_DEF (task, get_protocol_reply),
 	LUA_INTERFACE_DEF (task, headers_foreach),
 	LUA_INTERFACE_DEF (task, disable_action),
+	LUA_INTERFACE_DEF (task, get_newlines_type),
 	{"__tostring", rspamd_lua_class_tostring},
 	{NULL, NULL}
 };
@@ -1237,20 +1247,32 @@ lua_task_insert_result (lua_State * L)
 {
 	struct rspamd_task *task = lua_check_task (L, 1);
 	const gchar *symbol_name, *param;
-	double flag;
+	double weight;
 	struct rspamd_symbol_result *s;
-	gint i, top;
+	enum rspamd_symbol_insert_flags flags = RSPAMD_SYMBOL_INSERT_DEFAULT;
+	gint i, top, args_start;
 
 	if (task != NULL) {
-		symbol_name =
-			rspamd_mempool_strdup (task->task_pool, luaL_checkstring (L, 2));
-		flag = luaL_checknumber (L, 3);
+		if (lua_isboolean (L, 2)) {
+			args_start = 3;
+
+			if (lua_toboolean (L, 2)) {
+				flags |= RSPAMD_SYMBOL_INSERT_ENFORCE;
+			}
+		}
+		else {
+			args_start = 2;
+		}
+
+		symbol_name = rspamd_mempool_strdup (task->task_pool,
+				luaL_checkstring (L, args_start));
+		weight = luaL_checknumber (L, args_start + 1);
 		top = lua_gettop (L);
-		s = rspamd_task_insert_result (task, symbol_name, flag, NULL);
+		s = rspamd_task_insert_result_full (task, symbol_name, weight, NULL, flags);
 
 		/* Get additional options */
 		if (s) {
-			for (i = 4; i <= top; i++) {
+			for (i = args_start + 2; i <= top; i++) {
 				if (lua_type (L, i) == LUA_TSTRING) {
 					param = luaL_checkstring (L, i);
 					rspamd_task_add_result_option (task, s, param);
@@ -2917,7 +2939,7 @@ lua_task_get_hostname (lua_State *L)
 				 *  message sender's IP address enclosed in square
 				 *  brackets (e.g. `[a.b.c.d]')
 				 */
-				lua_pushstring (L, "unknown");
+				lua_pushnil (L);
 			}
 			else {
 				lua_pushstring (L, task->hostname);
@@ -4238,6 +4260,32 @@ lua_task_disable_action (lua_State *L)
 		else {
 			task->result->actions_limits[action] = NAN;
 			lua_pushboolean (L, true);
+		}
+	}
+	else {
+		return luaL_error (L, "invalid arguments");
+	}
+
+	return 1;
+}
+
+static gint
+lua_task_get_newlines_type (lua_State *L)
+{
+	struct rspamd_task *task = lua_check_task (L, 1);
+
+	if (task) {
+		switch (task->nlines_type) {
+		case RSPAMD_TASK_NEWLINES_CR:
+			lua_pushstring (L, "cr");
+			break;
+		case RSPAMD_TASK_NEWLINES_LF:
+			lua_pushstring (L, "lf");
+			break;
+		case RSPAMD_TASK_NEWLINES_CRLF:
+		default:
+			lua_pushstring (L, "crlf");
+			break;
 		}
 	}
 	else {

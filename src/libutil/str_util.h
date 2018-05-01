@@ -242,12 +242,16 @@ gint rspamd_strings_levenshtein_distance (const gchar *s1, gsize s1len,
  * Fold header using rfc822 rules, return new GString from the previous one
  * @param name name of header (used just for folding)
  * @param value value of header
+ * @param fold_max
+ * @param how
+ * @param fold_on_chars
  * @return new GString with the folded value
  */
 GString *rspamd_header_value_fold (const gchar *name,
 		const gchar *value,
 		guint fold_max,
-		enum rspamd_newlines_type how);
+		enum rspamd_newlines_type how,
+		const gchar *fold_on_chars);
 
 /**
  * Search for a substring `srch` in the text `in` using Apostolico-Crochemore algorithm
@@ -360,5 +364,27 @@ rspamd_str_has_8bit (const guchar *beg, gsize len)
 
 	return FALSE;
 }
+
+/**
+ * Gets a string in UTF8 and normalises it to NFKC_Casefold form
+ * @param pool optional memory pool used for logging purposes
+ * @param start
+ * @param len
+ * @return TRUE if a string has been normalised
+ */
+gboolean rspamd_normalise_unicode_inplace (rspamd_mempool_t *pool,
+		gchar *start, guint *len);
+
+/**
+ * Escapes special characters when reading plain data to be processed in pcre
+ * @param pattern pattern to process
+ * @param slen source length
+ * @param dst_len destination length pointer (can be NULL)
+ * @param allow_glob allow glob expressions to be translated into pcre
+ * @return newly allocated zero terminated escaped pattern
+ */
+gchar *
+rspamd_str_regexp_escape (const gchar *pattern, gsize slen,
+		gsize *dst_len, gboolean allow_glob);
 
 #endif /* SRC_LIBUTIL_STR_UTIL_H_ */

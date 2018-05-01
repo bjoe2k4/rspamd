@@ -217,6 +217,13 @@ rspamd_rcl_logging_handler (rspamd_mempool_t *pool, const ucl_object_t *obj,
 		else if (g_ascii_strcasecmp (log_level, "info") == 0) {
 			cfg->log_level = G_LOG_LEVEL_INFO | G_LOG_LEVEL_MESSAGE;
 		}
+		else if (g_ascii_strcasecmp (log_level, "message") == 0) {
+			cfg->log_level =  G_LOG_LEVEL_MESSAGE;
+		}
+		else if (g_ascii_strcasecmp (log_level, "silent") == 0) {
+			cfg->log_level =  G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_INFO;
+			cfg->log_silent_workers = TRUE;
+		}
 		else if (g_ascii_strcasecmp (log_level, "debug") == 0) {
 			cfg->log_level = G_LOG_LEVEL_DEBUG;
 		}
@@ -3188,22 +3195,6 @@ rspamd_rcl_parse_struct_ucl (rspamd_mempool_t *pool,
 	*target = obj;
 
 	return TRUE;
-}
-
-gboolean
-rspamd_rcl_parse_struct_iplist (rspamd_mempool_t *pool,
-		const ucl_object_t *obj,
-		gpointer ud,
-		struct rspamd_rcl_section *section,
-		GError **err)
-{
-	struct rspamd_rcl_struct_parser *pd = ud;
-	radix_compressed_t **target;
-
-	target = (radix_compressed_t **)(((gchar *)pd->user_struct) + pd->offset);
-
-	return rspamd_config_radix_from_ucl (pd->cfg, obj,
-			ucl_object_key (obj), target, err);
 }
 
 

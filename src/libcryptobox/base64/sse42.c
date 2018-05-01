@@ -99,7 +99,7 @@ static inline __m128i dec_reshuffle (__m128i in)
 
 #define CMPGT(s,n)	_mm_cmpgt_epi8((s), _mm_set1_epi8(n))
 
-#define INNER_LOOP_SSE42 do { \
+#define INNER_LOOP_SSE42 \
 	while (inlen >= 24) { \
 		__m128i str = _mm_loadu_si128((__m128i *)c); \
 		const __m128i lut = _mm_setr_epi8( \
@@ -135,8 +135,7 @@ static inline __m128i dec_reshuffle (__m128i in)
 		o += 12; \
 		outl += 12; \
 		inlen -= 16; \
-	} \
-} while (0)
+	}
 
 int
 base64_decode_sse42 (const char *in, size_t inlen,
@@ -156,7 +155,7 @@ repeat:
 	switch (leftover) {
 		for (;;) {
 		case 0:
-			INNER_LOOP_SSE42;
+			INNER_LOOP_SSE42
 
 			if (inlen-- == 0) {
 				ret = 1;

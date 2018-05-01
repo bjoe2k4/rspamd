@@ -198,7 +198,7 @@ struct rspamd_worker_conf {
 	struct worker_s *worker;                        /**< pointer to worker type								*/
 	GQuark type;                                    /**< type of worker										*/
 	struct rspamd_worker_bind_conf *bind_conf;      /**< bind configuration									*/
-	guint16 count;                                  /**< number of workers									*/
+	gint16 count;                                   /**< number of workers									*/
 	GList *listen_socks;                            /**< listening sockets descriptors						*/
 	guint32 rlimit_nofile;                          /**< max files limit									*/
 	guint32 rlimit_maxcore;                         /**< maximum core file size								*/
@@ -325,6 +325,7 @@ struct rspamd_config {
 	gint log_level;                                 /**< log level trigger									*/
 	gchar *log_file;                                /**< path to logfile in case of file logging			*/
 	gboolean log_buffered;                          /**< whether logging is buffered						*/
+	gboolean log_silent_workers;                    /**< silence info messages from workers					*/
 	guint32 log_buf_size;                           /**< length of log buffer								*/
 	const ucl_object_t *debug_ip_map;               /**< turn on debugging for specified ip addresses       */
 	gboolean log_urls;                              /**< whether we should log URLs                         */
@@ -636,10 +637,11 @@ const gchar * rspamd_action_to_str_alt (enum rspamd_action_type action);
  * @param err error pointer
  * @return
  */
+struct rspamd_radix_map_helper;
 gboolean rspamd_config_radix_from_ucl (struct rspamd_config *cfg,
 		const ucl_object_t *obj,
 		const gchar *description,
-		radix_compressed_t **target,
+		struct rspamd_radix_map_helper **target,
 		GError **err);
 
 #define msg_err_config(...) rspamd_default_log_function (G_LOG_LEVEL_CRITICAL, \

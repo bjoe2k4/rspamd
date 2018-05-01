@@ -745,7 +745,7 @@ rspamd_redis_stat_learns (redisAsyncContext *c, gpointer r, gpointer priv)
 			rspamd_strtoul (reply->str, reply->len, &num);
 		}
 
-		obj = (ucl_object_t *)ucl_object_lookup (cbdata->cur, "revision");
+		obj = (ucl_object_t *) ucl_object_lookup (cbdata->cur, "revision");
 		if (obj) {
 			obj->value.iv += num;
 		}
@@ -852,17 +852,26 @@ rspamd_redis_stat_keys (redisAsyncContext *c, gpointer r, gpointer priv)
 							else {
 								learned_key = "learns_ham";
 							}
+							redisAsyncCommand (cbdata->redis,
+									rspamd_redis_stat_learns,
+									cbdata,
+									"HGET %s %s",
+									k, learned_key);
+							cbdata->inflight += 1;
 						}
-
-						redisAsyncCommand (cbdata->redis, rspamd_redis_stat_key,
-								cbdata,
-								"HLEN %s",
-								k);
-						redisAsyncCommand (cbdata->redis, rspamd_redis_stat_learns,
-								cbdata,
-								"HGET %s %s",
-								k, learned_key);
-						cbdata->inflight += 2;
+						else {
+							redisAsyncCommand (cbdata->redis,
+									rspamd_redis_stat_key,
+									cbdata,
+									"HLEN %s",
+									k);
+							redisAsyncCommand (cbdata->redis,
+									rspamd_redis_stat_learns,
+									cbdata,
+									"HGET %s %s",
+									k, learned_key);
+							cbdata->inflight += 2;
+						}
 					}
 				}
 			}
@@ -1031,9 +1040,11 @@ rspamd_redis_timeout (gint fd, short what, gpointer d)
 		redisAsyncFree (redis);
 	}
 
-	g_set_error (&rt->err, rspamd_redis_stat_quark (), ETIMEDOUT,
-			"error getting reply from redis server %s: timeout",
-			rspamd_upstream_name (rt->selected));
+	if (!rt->err) {
+		g_set_error (&rt->err, rspamd_redis_stat_quark (), ETIMEDOUT,
+				"error getting reply from redis server %s: timeout",
+				rspamd_upstream_name (rt->selected));
+	}
 }
 
 /* Called when we have connected to the redis server and got stats */
@@ -1082,9 +1093,11 @@ rspamd_redis_connected (redisAsyncContext *c, gpointer r, gpointer priv)
 				rspamd_upstream_name (rt->selected), c->errstr);
 		rspamd_upstream_fail (rt->selected);
 
-		g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
-				"error getting reply from redis server %s: %s",
-				rspamd_upstream_name (rt->selected), c->errstr);
+		if (!rt->err) {
+			g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
+					"error getting reply from redis server %s: %s",
+					rspamd_upstream_name (rt->selected), c->errstr);
+		}
 	}
 
 }
@@ -1167,9 +1180,12 @@ rspamd_redis_processed (redisAsyncContext *c, gpointer r, gpointer priv)
 		if (rt->redis) {
 			rspamd_upstream_fail (rt->selected);
 		}
-		g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
-				"cannot get values: error getting reply from redis server %s: %s",
-				rspamd_upstream_name (rt->selected), c->errstr);
+
+		if (!rt->err) {
+			g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
+					"cannot get values: error getting reply from redis server %s: %s",
+					rspamd_upstream_name (rt->selected), c->errstr);
+		}
 	}
 
 	if (rt->has_event) {
@@ -1197,9 +1213,11 @@ rspamd_redis_learned (redisAsyncContext *c, gpointer r, gpointer priv)
 			rspamd_upstream_fail (rt->selected);
 		}
 
-		g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
-				"cannot get learned: error getting reply from redis server %s: %s",
-				rspamd_upstream_name (rt->selected), c->errstr);
+		if (!rt->err) {
+			g_set_error (&rt->err, rspamd_redis_stat_quark (), c->err,
+					"cannot get learned: error getting reply from redis server %s: %s",
+					rspamd_upstream_name (rt->selected), c->errstr);
+		}
 	}
 
 	if (rt->has_event) {

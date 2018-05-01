@@ -22,27 +22,38 @@ end
 
 local symbol = 'ONCE_RECEIVED'
 local symbol_rdns = 'RDNS_NONE'
+local symbol_rdns_dnsfail = 'RDNS_DNSFAIL'
 local symbol_mx = 'DIRECT_TO_MX'
 -- Symbol for strict checks
 local symbol_strict = nil
 local bad_hosts = {}
 local good_hosts = {}
 local whitelist = nil
+
 local rspamd_logger = require "rspamd_logger"
+local fun = require "fun"
+
 local check_local = false
 local check_authed = false
 
 local function check_quantity_received (task)
   local recvh = task:get_received_headers()
 
+  local nreceived = fun.reduce(function(acc, rcvd)
+    return acc + 1
+  end, 0, fun.filter(function(h)
+    return not h['artificial']
+  end, recvh))
+
   local function recv_dns_cb(_, to_resolve, results, err)
     if err and (err ~= 'requested record is not found' and err ~= 'no records with this name') then
       rspamd_logger.errx(task, 'error looking up %s: %s', to_resolve, err)
+      task:insert_result(symbol_rdns_dnsfail, 1.0)
     end
     task:inc_dns_req()
 
     if not results then
-      if recvh and #recvh <= 1 then
+      if nreceived <= 1 then
         task:insert_result(symbol, 1)
         task:insert_result(symbol_strict, 1)
         -- Check for MUAs
@@ -64,12 +75,14 @@ local function check_quantity_received (task)
         end
       end
 
-      task:insert_result(symbol, 1)
-      for _,h in ipairs(bad_hosts) do
-        if string.find(results[1], h) then
+      if nreceived <= 1 then
+        task:insert_result(symbol, 1)
+        for _,h in ipairs(bad_hosts) do
+          if string.find(results[1], h) then
 
-          task:insert_result(symbol_strict, 1, h)
-          return
+            task:insert_result(symbol_strict, 1, h)
+            return
+          end
         end
       end
     end
@@ -99,7 +112,7 @@ local function check_quantity_received (task)
     return
   end
 
-  if recvh and #recvh <= 1 then
+  if nreceived <= 1 then
     local ret = true
     local r = recvh[1]
 
@@ -165,6 +178,8 @@ if opts then
         symbol_strict = v
       elseif n == 'symbol_rdns' then
         symbol_rdns = v
+      elseif n == 'symbol_rdns_dnsfail' then
+        symbol_rdns_dnsfail = v
       elseif n == 'bad_host' then
         if type(v) == 'string' then
           bad_hosts[1] = v
@@ -187,6 +202,11 @@ if opts then
 
     rspamd_config:register_symbol({
       name = symbol_rdns,
+      type = 'virtual',
+      parent = id
+    })
+    rspamd_config:register_symbol({
+      name = symbol_rdns_dnsfail,
       type = 'virtual',
       parent = id
     })
